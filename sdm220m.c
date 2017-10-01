@@ -44,18 +44,21 @@ int process_modbus() {
 	// Setup modbus
 	mb = modbus_new_rtu(port, baud, parity, data_bits, stop_bits);
 	if (mb == NULL) {
-		fprintf(stderr, "Unable to create libmodbus context: %s\n", modbus_strerror(errnum));
+		const char* errstr = modbus_strerror(errnum);
+		fprintf(stderr, "Unable to create libmodbus context: %s\n", errstr);
 		return EXIT_FAILURE;
 	}
 	if (modbus_set_slave(mb, slave) == -1) {
-		fprintf(stderr, "Set slave failed: %s\n", modbus_strerror(errnum));
+		const char* errstr = modbus_strerror(errnum);
+		fprintf(stderr, "Set slave failed: %s\n", errstr);
                 modbus_free(mb);
                 return EXIT_FAILURE;
 	}
 
 	// Connect
 	if (modbus_connect(mb) == -1) {
-		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errnum));
+		const char* errstr = modbus_strerror(errnum);
+		fprintf(stderr, "Connection failed: %s\n", errstr);
 		modbus_free(mb);
 		return EXIT_FAILURE;
 	}
