@@ -1,0 +1,7 @@
+#!/bin/bash
+./sdm220m --csv
+while [ 1 ]
+do
+./sdm220m --csv-no-head
+sleep 1
+done
