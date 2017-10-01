@@ -10,6 +10,7 @@
 #include <stdlib.h> // exit
 #include <stdio.h> // console output
 #include <getopt.h> // getopt
+#include <errno.h> // number of last error
 #include <modbus.h> // Part of libmodbus
 #include "sdm220m.h"
 #include "swap_float.h"
@@ -38,27 +39,23 @@ static int csv_no_head_flag;
 
 int process_modbus() {
 	modbus_t *mb;
-	int errnum;
 	int ret;
 
 	// Setup modbus
 	mb = modbus_new_rtu(port, baud, parity, data_bits, stop_bits);
 	if (mb == NULL) {
-		const char* errstr = modbus_strerror(errnum);
-		fprintf(stderr, "Unable to create libmodbus context: %s\n", errstr);
+		fprintf(stderr, "Unable to create libmodbus context: %s\n",  modbus_strerror(errno));
 		return EXIT_FAILURE;
 	}
 	if (modbus_set_slave(mb, slave) == -1) {
-		const char* errstr = modbus_strerror(errnum);
-		fprintf(stderr, "Set slave failed: %s\n", errstr);
-                modbus_free(mb);
-                return EXIT_FAILURE;
+		fprintf(stderr, "Set slave failed: %s\n",  modbus_strerror(errno));
+		modbus_free(mb);
+		return EXIT_FAILURE;
 	}
 
 	// Connect
 	if (modbus_connect(mb) == -1) {
-		const char* errstr = modbus_strerror(errnum);
-		fprintf(stderr, "Connection failed: %s\n", errstr);
+		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
 		modbus_free(mb);
 		return EXIT_FAILURE;
 	}
@@ -73,9 +70,10 @@ int process_modbus() {
 			2, // Parameters are two conscutive 16bits registers
 			&input_reg_results[input_reg_address[n]]);
 		if (ret == -1) {
-			fprintf(stderr, "Read failed register 0x%04x (%s)\n",
+			fprintf(stderr, "Read failed register 0x%04x (%s): %s\n",
 				input_reg_address[n],
-				input_reg_address_description[n]);
+				input_reg_address_description[n],
+				modbus_strerror(errno));
 			input_reg_results[input_reg_address[n]] = 0;
 			input_reg_results[input_reg_address[n] + 1] = 0;
 		}
