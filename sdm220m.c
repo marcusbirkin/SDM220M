@@ -15,7 +15,7 @@
 #include "sdm220m.h"
 #include "swap_float.h"
 
-// RTU Serial settings
+/* RTU Serial settings */
 #define default_port "/dev/ttyUSB0"
 char* port = default_port;
 #define default_baud 9600
@@ -27,21 +27,25 @@ int data_bits = default_data_bits;
 #define default_stop_bits 1
 int stop_bits = default_stop_bits;
 
-// Default RTU Slave
-#define default_slave 1
+#define default_slave 1 // Default RTU Slave
 int slave = default_slave;
 
-/* Flag set by ‘--csv’. */
-static int csv_flag;
+static int csv_flag; // Flag set by ‘--csv’.
+static int csv_no_head_flag; // Flag set by ‘--csv-no-head’.
 
-/* Flag set by ‘--csv-no-head’. */
-static int csv_no_head_flag;
 
+/*
+* Process Modbus
+*
+* Connect to device via modbus
+* Read all required registers
+* Print values as per application flags
+*/
 int process_modbus() {
 	modbus_t *mb;
 	int ret;
 
-	// Setup modbus
+	/* Setup Modbus */
 	mb = modbus_new_rtu(port, baud, parity, data_bits, stop_bits);
 	if (mb == NULL) {
 		fprintf(stderr, "Unable to create libmodbus context: %s\n",  modbus_strerror(errno));
@@ -52,37 +56,15 @@ int process_modbus() {
 		modbus_free(mb);
 		return EXIT_FAILURE;
 	}
-
-	// Connect
+	/* Connect */
 	if (modbus_connect(mb) == -1) {
 		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
 		modbus_free(mb);
 		return EXIT_FAILURE;
 	}
 
-	// Read required input registers
-	uint16_t input_reg_address_max = input_reg_address[input_reg_count - 1] + 1;
-	uint16_t input_reg_results[input_reg_address_max];
-	for (int n = 0; n < input_reg_count; n++) {
-		ret = modbus_read_input_registers(
-			mb,
-			input_reg_address[n],
-			2, // Parameters are two conscutive 16bits registers
-			&input_reg_results[input_reg_address[n]]);
-		if (ret == -1) {
-			fprintf(stderr, "Read failed register 0x%04x (%s): %s\n",
-				input_reg_address[n],
-				input_reg_address_description[n],
-				modbus_strerror(errno));
-			input_reg_results[input_reg_address[n]] = 0;
-			input_reg_results[input_reg_address[n] + 1] = 0;
-		}
-	}
-
-	// Print results
-	float f;
+	/* CSV Header */
 	if (csv_flag & !csv_no_head_flag) {
-		// CSV Header
 		for (int n = 0; n < input_reg_count; n++) {
 			printf("%s (%s)",
 				input_reg_address_description[n],
@@ -93,23 +75,50 @@ int process_modbus() {
 				putchar('\n');
 		}
 	}
+
+	/* Read and print required input registers */
+	uint16_t input_reg_address_max = input_reg_address[input_reg_count - 1] + 1;
+
 	for (int n = 0; n < input_reg_count; n++) {
-		f = modbus_get_float(&input_reg_results[input_reg_address[n]]);
-		if (csv_flag) {
-			printf("%.3f",swap_float(f));
-			if (n < input_reg_count - 1)
-				putchar(',');
-			else
-				putchar('\n');
+		uint16_t input_reg_results = 0;
+		ret = modbus_read_input_registers(
+			mb,
+			input_reg_address[n],
+			2, // Parameters are two conscutive 16bits registers
+			&input_reg_results);
+		if (ret == -1) {
+			/* Failed */
+			if (csv_flag) {
+				/* CVS Format */
+				printf("%c",
+					(n < input_reg_count - 1) ? ',' : '\n');
+			} else {
+				/* Human readable */
+				fprintf(stderr, "Read failed register 0x%04x (%s): %s\n",
+					input_reg_address[n],
+					input_reg_address_description[n],
+					modbus_strerror(errno));
+			}
 		} else {
-			printf("%s: %.3f %s\n",
-				input_reg_address_description[n],
-				swap_float(f),
-				input_reg_address_unit[n]);
+			/* Success */
+			float f;
+			f = modbus_get_float(&input_reg_results);
+			if (csv_flag) {
+				/* CVS Format */
+				printf("%.3f%c",
+					swap_float(f),
+					(n < input_reg_count - 1) ? ',' : '\n');
+			} else {
+				/* Human readable */
+				printf("%s: %.3f %s\n",
+					input_reg_address_description[n],
+					swap_float(f),
+					input_reg_address_unit[n]);
+			}
 		}
 	}
 
-	// Clean up
+	/* Clean Up */
 	modbus_close(mb);
 	modbus_free(mb);
 
@@ -119,7 +128,7 @@ int process_modbus() {
 
 int main (int argc, char **argv)
 {
-	// Process arguments
+	/* Process arguments */
 	int c;
 	while (1)
 	{
@@ -130,7 +139,7 @@ int main (int argc, char **argv)
 			{"table",	no_argument,	&csv_flag, 0},
 			{"csv-no-head", no_argument,	&csv_no_head_flag, 1},
 			/* These options don’t set a flag.
-			We distinguish them by their indices. */
+				 We distinguish them by their indices. */
 			{"port",	required_argument,	0,	'p'},
 			{"address",	required_argument,	0,	'a'},
 			{"baud",	required_argument,	0,	'b'},
@@ -195,7 +204,7 @@ int main (int argc, char **argv)
 		}
 	}
 
-	// If csv-no-head set, assume csv
+	/* If csv-no-head set, assume csv */
 	if (csv_no_head_flag)
 		csv_flag = csv_no_head_flag;
 
@@ -208,7 +217,7 @@ int main (int argc, char **argv)
 		fprintf(stderr, "\n");
 	}
 
-	// Now do the modbus stuff
+	/* Now do the modbus stuff */
 	int ret = process_modbus();
 
 	exit(ret);
