@@ -77,8 +77,6 @@ int process_modbus() {
 	}
 
 	/* Read and print required input registers */
-	uint16_t input_reg_address_max = input_reg_address[input_reg_count - 1] + 1;
-
 	for (int n = 0; n < input_reg_count; n++) {
 		uint16_t input_reg_results = 0;
 		ret = modbus_read_input_registers(
